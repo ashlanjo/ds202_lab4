@@ -1,0 +1,154 @@
+---
+title: "DS Lab 4"
+author: "Ashlan Simpson"
+date: "3/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Prep
+```{r}
+library(readxl)
+defense <- read_excel('/Users/Ashlan/Downloads/cyclonesFootball2020.xlsx', sheet='Defensive')
+offensive <- read_excel('/Users/Ashlan/Downloads/cyclonesFootball2020.xlsx', sheet='Offensive')
+biography <- read_excel('/Users/Ashlan/Downloads/cyclonesFootball2020.xlsx', sheet='Biography')
+```
+
+Part 1
+1) The player names and opponent names are factors.
+Done
+```{r}
+defClean <- defense
+offClean <- offensive
+bioClean <- biography
+defClean$Name <- as.factor(defClean$Name)
+defClean$Opponent_Opponent <- as.factor(defClean$Opponent_Opponent)
+offClean$Name <- as.factor(offClean$Name)
+offClean$Opponent_Opponent <- as.factor(offClean$Opponent_Opponent)
+bioClean$Name <- as.factor(bioClean$Name)
+```
+
+2)All offensive and defensive statistics are numerical. The Weight column in biogrpahy is also numeric. (Optional: Read ?across and learn to mutate multiple columns simultaneously using the across function in dplyr)
+Done
+```{r}
+library(tidyverse)
+names(offClean)[9] <- "Passing_CMP_ATT"
+
+defClean <- defClean %>%
+  mutate(across(c(Tackles_Solo, Tackles_ASST, Tackles_TFL, Tackles_Sack, Turnover_FF, Turnover_FR, Turnover_INT, Pass_QBH, Pass_PB), as.numeric))
+
+offClean <- offClean %>%
+  mutate(across(c(Receiving_REC, Receiving_YDS, Receiving_TD, Rushing_ATT, Rushing_YDS, Rushing_TD, Passing_CMP_ATT, Passing_YDS, Passing_TD, Passing_INT), as.numeric))
+
+bioClean <- bioClean %>% mutate(Weight=as.numeric(Weight))
+```
+
+3)Change the Height column in biography into numeric. (Hint: Use a unit that works well)
+Done
+```{r}
+bioClean <- bioClean %>% separate(Height, c("Feet", "Inches"), "-")
+bioClean$Feet <- as.numeric(bioClean$Feet)
+bioClean$Inches <- as.numeric(bioClean$Inches)
+bioClean <- bioClean %>% mutate(height = Feet*12+Inches)
+str(defClean)
+str(offClean)
+str(bioClean)
+```
+
+Part two
+1)Reformat the offClean data frame into a tidy format using pivot_longer. The type of statistic (Receiving_REC for the number of receivings, Receiving_YDS for receiving yards, etc) is added as a new key column named stat.
+Done. 
+```{r}
+offClean <- offClean %>% pivot_longer(cols = Receiving_REC:Passing_INT, names_to = "stat")
+```
+
+2)Show on the distributions of the offensive statistics. The distribution of each offensive statsitic should be shown in a separate facet. Explain the patterns you see.
+This is a pretty bad graph for interpretation because it is so hard to hard to read. Many players have a score of 0 for each offensive statistic which makes Y cover a large range. This makes it hard to examin the bars that represent anything larger than 0. In addition, any statistic with yards is going to have values that are a lot higher than other statistics which makes setting a binwidwidth difficult. Ultimately all we can really tell is lots players have 0 for every statitic and that the values are skewed right. 
+```{r}
+offClean %>% ggplot(aes(x=value)) + geom_histogram(binwidth = 4)+ facet_wrap(~stat) + ggtitle("Histograms of each offensive statsitic")
+```
+
+3)Did ISU have better offense against Oregon or Oklahoma? Answer this question by creating a scatterplot with the x- and y-axes being the receiving yards of the ISU players against these two opponents. A large number of receiving yards indicates good offense.
+Recieveing Yards for both schools seems to be clumped up at under 30. Oregon has two points higher than that on it's graph but Oklahoma has several. While I think the median for both opponents would be under 30 just looking at the graphs the mean for Oklahoma would be significantly higher than the mean for Oregon. 
+```{r}
+Q3 <- filter(offClean, stat== "Receiving_YDS" & value != "NA" & Opponent_Opponent=="Oregon" | Opponent_Opponent=="Oklahoma" & stat== "Receiving_YDS" & value != "NA")
+ggplot(Q3, aes(x=Opponent_Opponent, y=value)) + geom_point() + ggtitle("Receiving yards of the ISU players against Oklahoma & Oregon") +
+  xlab("Opponents") + ylab("Receiving Yards")
+```
+4)Separate the Hometown column into two columns, namely, the city and the state where the player comes from. Print the first few rows of these two columns. (Hint: look at the sep= argument of separate)
+Done
+```{r}
+bioClean <- bioClean %>% separate(Hometown, c("Town", "State"), ", ")
+sapply(list(bioClean$Town,bioClean$State), head)
+```
+
+5)How many players are there from each state?
+Most of the players come from Iowa but there are 18 other states that players also come from. The state that the most players come from that isn't Iowa is Flordia with 14 players. There is also a player from Australia which is obviously not a state. 
+```{r}
+bioClean[bioClean == "Mich."] <- "Mich"
+Count <- table(bioClean$State)
+Count
+```
+
+Part 3
+1)Find which states do the ISU players (both defensive and offensive) come from. Create an appropriate numerical or graphical summary.
+All information cointained in this graph was previousy displayed in Part 2 Q5. As such my commentary remains the same. I will post my answer from Part 2 Q5 down below for your convience.  
+Most of the players come from Iowa but there are 18 other states that players also come from. The state that the most players come from that isn't Iowa is Flordia with 14 players. There is also a player from Australia which is obviously not a state. 
+```{r}
+barplot(Count, main="Iowa State Players Home State",
+   xlab="States", ylab="Count", las=2)
+```
+2)How does the performance of quarterback Brock Purdy relate to the performance of the ISU team?
+Brock Purdy did significantly better than his peers when it came to Passing Yards. He only had two other teammates that had any passing Yards. Both of those teammates didn't come close to the distance Brock Purdy managed and didn't do it for as many games. In short, Brock Rurdy kicked butt when it came to passing yards. 
+```{r}
+df <- full_join(defClean, offClean, by='Name') %>%
+  full_join(., bioClean, by='Name')
+P3Q2 <- offClean %>% filter(stat=="Passing_YDS")
+ggplot(P3Q2, aes(x=Name, y=value)) + geom_point() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+3)Which ISU player(s) made the biggest progress over the last year? Compare the player-level statistics (i.e. averages and totals for each player) using both the 2020 and the 2019 data here. Choose for yourself the player statistics to investigate.
+For Passing_YDS we had a much higher median but a lower range and 3rd qurtile value for this year. Recieving YDS seemed to be about the same between this year and last year. This year we did significantly better when it came to Rushing Yards even though the max for both years was about on par. Recieving REC was about the same both years. However, Rushing Att is subtaintally better this year. In fact our Median for this year was higher than the 3rd quartile for last year. Overall, I would say we improved massively from this year to last year. 
+```{r}
+offClean19 <- read_excel('/Users/Ashlan/Downloads/cyclonesFootball2019.xlsx', sheet='Offensive')
+
+offClean19$Name <- as.factor(offClean19$Name)
+offClean19$Opponent_Opponent <- as.factor(offClean19$Opponent_Opponent)
+offClean19$`Passing_CMP-ATT`<- NULL
+offClean19 <- offClean19 %>%
+  mutate(across(c(Receiving_REC, Receiving_YDS, Receiving_TD, Rushing_ATT, Rushing_YDS, Rushing_TD, Passing_YDS, Passing_TD, Passing_INT), as.numeric))
+offClean19 <- offClean19 %>% pivot_longer(cols = Rushing_ATT:Passing_INT, names_to = "stat")
+
+offClean19 <- offClean19 %>% mutate(Year="2019")
+offClean <- offClean %>% mutate(Year="2020")
+All <- rbind(offClean, offClean19)
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+library(reshape2)
+df <- All %>% filter(stat != "Passing_YDS" & stat != "Receiving_YDS" & stat != "Rushing_YDS")
+ggplot(All, aes(stat, value)) + geom_boxplot(aes(colour = Year)) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+ggplot(df, aes(stat, value)) + geom_boxplot(aes(colour = Year)) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+
+
+
+
+                                
+
+
+
+
+
+
+
+
+
+
+
+
+
